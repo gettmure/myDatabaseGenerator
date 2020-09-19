@@ -12,7 +12,7 @@ function pushDataIntoDatabase($db, $sql, $values)
   $db->commit();
 }
 
-function generateBooksUsersSql($rows, $sql)
+function generateBooksSql($rows, $sql)
 {
   $values = [];
   $placeholders = array_fill(0, count($rows[0]), '?');
@@ -45,18 +45,32 @@ function generateBooksWithAuthorsSql($rows, $sql)
   return [$values, $sql];
 }
 
+function generateAuthorsForBooks($books, $db)
+{
+  $booksWithAuthors = [];
+  $sth = $db->prepare("SELECT id FROM users");
+  $sth->execute();
+  $authors = $sth->fetchAll(PDO::FETCH_COLUMN, 0);
+  foreach ($books as $book) {
+    $bookId = $book[0];
+    $booksWithAuthors[$bookId] = [];
+    $authorsCount = random_int(MIN_AUTHOURS_COUNT, MAX_AUTHOURS_COUNT);
+    for ($i = 0; $i < $authorsCount; $i++) {
+      $authorIndex = random_int(0, count($authors) - 1);
+      if (!in_array($authors[$authorIndex], $booksWithAuthors[$bookId])) {
+        $booksWithAuthors[$bookId][] = $authors[$authorIndex];
+      }
+    }
+  }
+  return $booksWithAuthors;
+}
+
 function executeSql($rows, $tableName, $db)
 {
-  $sql = "";
   switch ($tableName) {
     case 'books':
       $sql = "INSERT INTO books(id, name, description, year, image_url) VALUES ";
-      [$insertingValues, $sql] = generateBooksUsersSql($rows, $sql);
-      pushDataIntoDatabase($db, $sql, $insertingValues);
-      break;
-    case 'users':
-      $sql = "INSERT INTO users(id, username, password, firstname, lastname) VALUES ";
-      [$insertingValues, $sql] = generateBooksUsersSql($rows, $sql);
+      [$insertingValues, $sql] = generateBooksSql($rows, $sql);
       pushDataIntoDatabase($db, $sql, $insertingValues);
       break;
     case 'book_user':
@@ -76,10 +90,10 @@ function getDatabaseConnection()
   return new PDO("pgsql:host=$HOST; dbname=$DB_NAME", "$DB_USER", "$DB_PASSWORD");
 }
 
-function insertValuesIntoDatabase($users, $books, $booksWithAuthors)
+function insertValuesIntoDatabase($books)
 {
   $db = getDatabaseConnection();
+  $booksWithAuthors = generateAuthorsForBooks($books, $db);
   executeSql($books, 'books', $db);
-  executeSql($users, 'users', $db);
   executeSql($booksWithAuthors, 'book_user', $db);
 }
